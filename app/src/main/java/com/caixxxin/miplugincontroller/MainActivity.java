@@ -37,8 +37,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         ipText = (EditText) findViewById(R.id.ipInput);
         tokenText = (EditText) findViewById(R.id.tokenInput);
 
-        Intent serviceIntent = new Intent(context, MiPluginService.class);
-        context.startService(serviceIntent);
+        Intent serviceIntent = new Intent(this, MiPluginService.class);
+        this.startService(serviceIntent);
     }
 
     @Override
