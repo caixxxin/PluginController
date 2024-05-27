@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/ipTip"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:text="IP地址："
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <EditText
+        android:id="@+id/ipInput"
+        android:layout_width="800dp"
+        android:layout_height="50dp"
+        app:layout_constraintLeft_toRightOf="@+id/ipTip"
+        app:layout_constraintTop_toTopOf="parent"
+        android:hint="请输入IP地址" />
+
+    <TextView
+        android:id="@+id/tokenTip"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:text="TOKEN："
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/ipTip" />
+
+    <EditText
+        android:id="@+id/tokenInput"
+        android:layout_width="800dp"
+        android:layout_height="50dp"
+        app:layout_constraintLeft_toRightOf="@+id/tokenTip"
+        app:layout_constraintTop_toTopOf="@+id/tokenTip"
+        android:hint="请输入token" />
+
+    <Button
+        android:id="@+id/submitButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/tokenTip"
+        android:text="提交" />
+
+    <TextView
+        android:id="@+id/resultOutput"
+        android:layout_width="800dp"
+        android:layout_height="50dp"
+        android:text="Hello World!"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/submitButton" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
