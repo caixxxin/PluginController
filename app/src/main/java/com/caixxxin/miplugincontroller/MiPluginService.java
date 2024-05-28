@@ -50,9 +50,9 @@ public class MiPluginService extends Service {
                 Log.i(TAG, "battery=" + String.valueOf(mBattLevel) + " scale=" + String.valueOf(mBattScale) + " temp=" + String.valueOf(mBattTemp) + " status=" + batteryStatusToString(mBattStatus));
                 
                 if (mBattLevel > 80 && (mBattStatus == BatteryManager.BATTERY_STATUS_CHARGING || mBattStatus == BatteryManager.BATTERY_STATUS_FULL)) {
-                    sendUsbOff();
+                    sendAcOff();
                 } else if (mBattLevel < 20 && (mBattStatus == BatteryManager.BATTERY_STATUS_DISCHARGING || mBattStatus == BatteryManager.BATTERY_STATUS_NOT_CHARGING ||mBattStatus == BatteryManager.BATTERY_HEALTH_UNKNOWN)) {
-                    sendUsbOn();
+                    sendAcOn();
                 }
                 
                 serviceHandler.sendEmptyMessageDelayed(0, 60000);
@@ -276,193 +276,6 @@ public class MiPluginService extends Service {
         return value;
     }
 
-
-    public byte[] sendHello() {
-        byte[] byteRet = new byte[0];
-        DatagramSocket ds;
-        InetAddress udpaddr;
-
-        try {
-            Log.i(TAG, "hello target=" + mIp);
-            udpaddr = InetAddress.getByName(mIp);
-        } catch(Exception e) {
-            Log.i(TAG, "InetAddress.getByName e=", e);
-            return byteRet;
-        }
-
-        if (mIp.isEmpty()) {
-            return byteRet;
-        }
-
-        try {
-            ds = new DatagramSocket();
-        } catch(Exception e) {
-            Log.i(TAG, "udp socket e=", e);
-            return byteRet;
-        }
-        try {
-            ds.setReuseAddress(true);
-            ds.setBroadcast(true);
-        } catch(Exception e) {
-            Log.i(TAG, "udp setReuseAddress e=", e);
-            return byteRet;
-        }
-
-        String hellocmd = "21310020ffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-        byte[] bstr = hexStringToByteArray(hellocmd);
-
-        try {
-            Log.i(TAG, "sendHello cmd=" + miioBytesToHexStr(bstr));
-            DatagramPacket dp = new DatagramPacket(bstr, bstr.length, udpaddr, 54321);
-            ds.send(dp);
-            Log.i(TAG, "sendHello send done.");
-        } catch(Exception e) {
-            Log.i(TAG, "DatagramPacket e=", e);
-            return byteRet;
-        }
-
-        byte[] inBuf = new byte[1024];
-        try {
-            DatagramPacket inPacket = new DatagramPacket(inBuf, inBuf.length);
-            ds.setSoTimeout(1000);
-            Log.i(TAG, "sendHello start receive.");
-            ds.receive(inPacket);
-            Log.i(TAG, "sendHello receive done.");
-
-            String message = miioBytesToHexStr(inPacket.getData());
-            Log.i(TAG, "udp receive msg=" + message);
-            ds.close();
-            return inPacket.getData();
-        } catch(Exception e) {
-            Log.i(TAG, "udp receive e=", e);
-            return byteRet;
-        }
-    }
-
-    public void sendUsbOn() {
-        byte[] helloRet = sendHello();
-        if (helloRet.length > 0) {
-            int tick = 0;
-            tick = getInt32FromByteArray(helloRet, 12);
-
-            DatagramSocket ds;
-            InetAddress udpaddr;
-
-            try {
-                udpaddr = InetAddress.getByName(mIp);
-            } catch(Exception e) {
-                Log.i(TAG, "InetAddress.getByName e=", e);
-                return;
-            }
-
-            try {
-                ds = new DatagramSocket();
-            } catch(Exception e) {
-                Log.i(TAG, "udp socket e=", e);
-                return;
-            }
-            try {
-                ds.setReuseAddress(true);
-                ds.setBroadcast(true);
-            } catch(Exception e) {
-                Log.i(TAG, "udp setReuseAddress e=", e);
-                return;
-            }
-
-            byte[] bstr = usbOnCmd(tick);
-            try {
-                Log.i(TAG, "sendUsbOn cmd=" + miioBytesToHexStr(bstr));
-                DatagramPacket dp = new DatagramPacket(bstr, bstr.length, udpaddr, 54321);
-                ds.send(dp);
-                Log.i(TAG, "sendUsbOn send done.");
-            } catch(Exception e) {
-                Log.i(TAG, "DatagramPacket e=", e);
-                return;
-            }
-
-            byte[] inBuf = new byte[1024];
-            try {
-                DatagramPacket inPacket = new DatagramPacket(inBuf, inBuf.length);
-                ds.setSoTimeout(1000);
-                Log.i(TAG, "sendUsbOn start receive.");
-                ds.receive(inPacket);
-                Log.i(TAG, "sendUsbOn receive done.");
-
-                String message = commonBytesToHexStr(inPacket.getData());
-                Log.i(TAG, "udp receive msg=" + message);
-                
-            } catch(Exception e) {
-                Log.i(TAG, "udp receive e=", e);
-                return;
-            }
-            ds.close();
-        } else {
-            Log.i(TAG, "hello cmd ret error.");
-        }
-    }
-
-    public void sendUsbOff() {
-        byte[] helloRet = sendHello();
-        if (helloRet.length > 0) {
-            int tick = 0;
-            tick = getInt32FromByteArray(helloRet, 12);
-
-            DatagramSocket ds;
-            InetAddress udpaddr;
-
-            try {
-                udpaddr = InetAddress.getByName(mIp);
-            } catch(Exception e) {
-                Log.i(TAG, "InetAddress.getByName e=", e);
-                return;
-            }
-
-            try {
-                ds = new DatagramSocket();
-            } catch(Exception e) {
-                Log.i(TAG, "udp socket e=", e);
-                return;
-            }
-            try {
-                ds.setReuseAddress(true);
-                ds.setBroadcast(true);
-            } catch(Exception e) {
-                Log.i(TAG, "udp setReuseAddress e=", e);
-                return;
-            }
-
-            byte[] bstr = usbOffCmd(tick);
-            try {
-                Log.i(TAG, "sendUsbOff cmd=" + miioBytesToHexStr(bstr));
-                DatagramPacket dp = new DatagramPacket(bstr, bstr.length, udpaddr, 54321);
-                ds.send(dp);
-                Log.i(TAG, "sendUsbOff send done.");
-            } catch(Exception e) {
-                Log.i(TAG, "DatagramPacket e=", e);
-                return;
-            }
-
-            byte[] inBuf = new byte[1024];
-            try {
-                DatagramPacket inPacket = new DatagramPacket(inBuf, inBuf.length);
-                ds.setSoTimeout(1000);
-                Log.i(TAG, "sendUsbOff start receive.");
-                ds.receive(inPacket);
-                Log.i(TAG, "sendUsbOff receive done.");
-
-                String message = miioBytesToHexStr(inPacket.getData());
-                Log.i(TAG, "udp receive msg=" + message);
-                
-            } catch(Exception e) {
-                Log.i(TAG, "udp receive e=", e);
-                return;
-            }
-            ds.close();
-        } else {
-            Log.i(TAG, "hello cmd ret error.");
-        }
-    }
-
     public byte[] usbOnCmd(int tick) {
         String usbOnCmd = "21310060000000000003266800000b07"
                         + "d4130e242964c56c3ff610140c6531ec"
@@ -497,12 +310,141 @@ public class MiPluginService extends Service {
         return usbOffBstr;
     }
 
+
+    public void sendAcOn() {
+        byte[] helloRet = sendHelloCmd();
+        byte[] byteAcOnCmd = genAcOnCmd(helloRet);
+        udpSendAndReceive(byteAcOnCmd);
+    }
+
+    // plugin2
+    public byte[] genAcOnCmd(byte[] byteHelloRet) {
+        int tick = getInt32FromByteArray(byteHelloRet, 12);
+
+        String strAcOnCmd = "213100600000000003ece7df000014b5"
+                          + "03c8bd98935407bba7b79cfc474b99fb"
+                          + "3dd7de65737bce533509aec47ff03cc8"
+                          + "08fb656d03efd0c23dcd700442297542"
+                          + "cb9f5bc55b81373aed5f850cda4af463"
+                          + "23942b1f6b93cc6c08f766cfdff255c6";
+
+        byte[] byteAcOnCmd = hexStringToByteArray(strAcOnCmd);
+        byte[] byteTick = getByteArrayFromInt32(tick + 1);
+        System.arraycopy(byteTick, 0, byteAcOnCmd, 12, 4);
+
+        byte[] md5Ret = md5(byteAcOnCmd);
+        System.arraycopy(md5Ret, 0, byteAcOnCmd, 16, 16);
+
+        return byteAcOnCmd;
+    }
+
+    public void sendAcOff() {
+        byte[] helloRet = sendHelloCmd();
+        byte[] byteAcOffCmd = genAcOffCmd(helloRet);
+        udpSendAndReceive(byteAcOffCmd);
+    }
+
+    // plugin2
+    public byte[] genAcOffCmd(byte[] byteHelloRet) {
+        int tick = getInt32FromByteArray(byteHelloRet, 12);
+
+        String strAcOffCmd = "213100600000000003ece7df000014bb"
+                           + "03c8bd98935407bba7b79cfc474b99fb"
+                           + "3dd7de65737bce533509aec47ff03cc8"
+                           + "08fb656d03efd0c23dcd700442297542"
+                           + "603e67c295ca9a939e70d70658b42b47"
+                           + "c711df96aa09ca66342403e4d3f7a2f9";
+
+        byte[] byteAcOffCmd = hexStringToByteArray(strAcOffCmd);
+        byte[] byteTick = getByteArrayFromInt32(tick + 1);
+        System.arraycopy(byteTick, 0, byteAcOffCmd, 12, 4);
+
+        byte[] md5Ret = md5(byteAcOffCmd);
+        System.arraycopy(md5Ret, 0, byteAcOffCmd, 16, 16);
+
+        return byteAcOffCmd;
+    }
+
     public byte[] md5(byte[] input) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
             return md.digest(input);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Could not find MD5 algorithm", e);
+        }
+    }
+
+    public byte[] sendHelloCmd() {
+        String strHelloCmd = "21310020ffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        byte[] byteHelloCmd = hexStringToByteArray(strHelloCmd);
+
+        byte[] byteHelloRet = udpSendAndReceive(byteHelloCmd);
+        return byteHelloRet;
+    }
+    
+    public byte[] udpSendAndReceive(byte[] byteCmd) {
+        byte[] byteRet = new byte[0];
+        DatagramSocket ds;
+        InetAddress udpAddr;
+
+        if (byteCmd.length == 0) {
+            Log.e(TAG, "input cmd empty.");
+            return byteRet;
+        }
+
+        try {
+            Log.i(TAG, "udp target=" + mIp);
+            udpAddr = InetAddress.getByName(mIp);
+        } catch(Exception e) {
+            Log.i(TAG, "InetAddress.getByName e=", e);
+            return byteRet;
+        }
+
+        if (mIp.isEmpty()) {
+            Log.e(TAG, "udp target empty.");
+            return byteRet;
+        }
+
+        try {
+            ds = new DatagramSocket();
+        } catch(Exception e) {
+            Log.i(TAG, "udp socket e=", e);
+            return byteRet;
+        }
+
+        try {
+            Log.i(TAG, "send cmd=" + miioBytesToHexStr(byteCmd));
+            DatagramPacket dp = new DatagramPacket(byteCmd, byteCmd.length, udpAddr, 54321);
+            ds.send(dp);
+            Log.i(TAG, "send cmd done.");
+        } catch(Exception e) {
+            Log.i(TAG, "DatagramPacket send e=", e);
+            return byteRet;
+        }
+
+        try {
+            ds.setReuseAddress(true);
+            ds.setBroadcast(true);
+        } catch(Exception e) {
+            Log.i(TAG, "udp setReuseAddress and broadcase e=", e);
+            return byteRet;
+        }
+
+        byte[] inBuf = new byte[1024];
+        try {
+            DatagramPacket inPacket = new DatagramPacket(inBuf, inBuf.length);
+            ds.setSoTimeout(1000);
+            Log.i(TAG, "receive cmd start.");
+            ds.receive(inPacket);
+            Log.i(TAG, "receive cmd done.");
+
+            String message = miioBytesToHexStr(inPacket.getData());
+            Log.i(TAG, "udp receive msg=" + message);
+            ds.close();
+            return inPacket.getData();
+        } catch(Exception e) {
+            Log.i(TAG, "udp receive e=", e);
+            return byteRet;
         }
     }
 }
