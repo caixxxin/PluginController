@@ -20,21 +20,30 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.Security;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+//{"id": 1, "method": "set_power", "params": ["off"]}
+//{"id": 1, "method": "set_power", "params": ["on"]}
+//{"id": 1, "method": "set_usb_off", "params": []}
 
 public class MiPluginService extends Service {
     private final IBinder binder = new MiPluginBinder();
-    String TAG = "MiPluginService";
+    private static final String TAG = "MiPluginService";
+    private static final String PLUG_MODEL_V1 = "chuangmi.plug.v1";
     String mIp = "";
     String mToken = "";
+    String mModel = "";
+    boolean mTestMode = false;
+    private Object deviceInfoLock = new Object();
 
     int mBattLevel = 0;
     int mBattScale = 0;
     int mBattTemp = 0;
     int mBattStatus = 0;
-
-    int mPort;
-    boolean running;
 
     private Looper serviceLooper;
     private ServiceHandler serviceHandler;
@@ -49,13 +58,23 @@ public class MiPluginService extends Service {
                 //int batteryVol = mBattery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
                 Log.i(TAG, "battery=" + String.valueOf(mBattLevel) + " scale=" + String.valueOf(mBattScale) + " temp=" + String.valueOf(mBattTemp) + " status=" + batteryStatusToString(mBattStatus));
                 
-                if (mBattLevel > 80 && (mBattStatus == BatteryManager.BATTERY_STATUS_CHARGING || mBattStatus == BatteryManager.BATTERY_STATUS_FULL)) {
-                    sendAcOff();
-                } else if (mBattLevel < 20 && (mBattStatus == BatteryManager.BATTERY_STATUS_DISCHARGING || mBattStatus == BatteryManager.BATTERY_STATUS_NOT_CHARGING ||mBattStatus == BatteryManager.BATTERY_HEALTH_UNKNOWN)) {
-                    sendAcOn();
+                if (!mTestMode) {
+                    if (mBattLevel > 80 && (mBattStatus == BatteryManager.BATTERY_STATUS_CHARGING || mBattStatus == BatteryManager.BATTERY_STATUS_FULL)) {
+                        sendAcOff();
+                    } else if (mBattLevel < 20 && (mBattStatus == BatteryManager.BATTERY_STATUS_DISCHARGING || mBattStatus == BatteryManager.BATTERY_STATUS_NOT_CHARGING ||mBattStatus == BatteryManager.BATTERY_HEALTH_UNKNOWN)) {
+                        sendAcOn();
+                    }
                 }
                 
                 serviceHandler.sendEmptyMessageDelayed(0, 60000);
+            } else if (msg.what == 1) {
+                sendAcOn();
+            } else if (msg.what == 2) {
+                sendAcOff();
+            } else if (msg.what == 3) {
+                sendUsbOn();
+            } else if (msg.what == 4) {
+                sendUsbOff();
             }
         }
     }
@@ -75,12 +94,17 @@ public class MiPluginService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "onCreate");
-        running = true;
-        mPort = -1;
+
+        // 初始化
+        Security.addProvider(new BouncyCastleProvider());
+
         SharedPreferences sharedPreferences = getSharedPreferences("pluginData", Context .MODE_PRIVATE);
-        mIp = sharedPreferences.getString("ip", "");
-        mToken = sharedPreferences.getString("token", "");
-        Log.i(TAG, "last ip=" + mIp + " token=" + mToken);
+        synchronized(deviceInfoLock) {
+            mIp = sharedPreferences.getString("ip", "");
+            mToken = sharedPreferences.getString("token", "");
+            mModel = sharedPreferences.getString("model", "");
+            Log.i(TAG, "last ip=" + mIp + " token=" + mToken + " mModel=" + mModel);
+        }
 
         // Start up the thread running the service. Note that we create a
         // separate thread because the service normally runs in the process's
@@ -95,9 +119,7 @@ public class MiPluginService extends Service {
         serviceHandler = new ServiceHandler(serviceLooper);
         registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         serviceHandler.sendEmptyMessageDelayed(0, 5000);
-
     }
-
 
     @Override
     public int onStartCommand(final Intent intent, int flags, int startId) {
@@ -107,27 +129,75 @@ public class MiPluginService extends Service {
 
     @Override
     public void onDestroy() {
-        running = false;
         super.onDestroy();
         Log.i(TAG, "onDestroy");
 
         unregisterReceiver(batteryReceiver);
     }
 
-    public void setIpAndToken(String ip, String token) {
+    public void setIpAndToken(String ip, String token, String model) {
         Log.i(TAG, "set ip=" + ip + " token=" + token);
-        mIp = ip;
-        mToken = token;
         //步骤1：创建一个SharedPreferences对象
         SharedPreferences sharedPreferences= getSharedPreferences("pluginData", Context.MODE_PRIVATE);
         //步骤2： 实例化SharedPreferences.Editor对象
         SharedPreferences.Editor editor = sharedPreferences.edit();
-        //步骤3：将获取过来的值放入文件
-        editor.putString("ip", mIp);
-        editor.putString("token", mToken);
+
+        synchronized(deviceInfoLock) {
+            mIp = ip;
+            mToken = token;
+            mModel = model;
+
+            //步骤3：将获取过来的值放入文件
+            editor.putString("ip", mIp);
+            editor.putString("token", mToken);
+            editor.putString("model", mModel);
+        }
 
         //步骤4：提交               
         editor.apply();
+    }
+
+    public String getToken() {
+        String strRet = "";
+        synchronized(deviceInfoLock) {
+            strRet = mToken;
+            Log.i(TAG, "get token=" + strRet);
+        }
+        return strRet;
+    }
+
+    public String getIp() {
+        String strRet = "";
+        synchronized(deviceInfoLock) {
+            strRet = mIp;
+            Log.i(TAG, "get ip=" + strRet);
+        }
+        return strRet;
+    }
+
+    public void setTestMode(boolean test) {
+        mTestMode = test;
+    }
+
+    public boolean getTestMode() {
+        Log.i(TAG, "getTestMode=" + mTestMode);
+        return mTestMode;
+    }
+
+    public void testAcOn() {
+        serviceHandler.sendEmptyMessageDelayed(1, 0);
+    }
+
+    public void testAcOff() {
+        serviceHandler.sendEmptyMessageDelayed(2, 0);
+    }
+    
+    public void testUsbOn() {
+        serviceHandler.sendEmptyMessageDelayed(3, 0);
+    }
+
+    public void testUsbOff() {
+        serviceHandler.sendEmptyMessageDelayed(4, 0);
     }
 
     private BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
@@ -178,18 +248,7 @@ public class MiPluginService extends Service {
         }
     }
 
-    public byte[] hexStringToByteArray(String hexString) {
-        byte[] byteArray = new byte[hexString.length() / 2];
-        for (int i = 0; i < byteArray.length; i++) {
-            int index = i * 2;
-            int high = Integer.parseInt(hexString.substring(index, index + 1), 16);
-            int low = Integer.parseInt(hexString.substring(index + 1, index + 2), 16);
-            byteArray[i] = (byte) ((high << 4) + low);
-        }
-        return byteArray;
-    }
-
-    public String commonBytesToHexStr(byte[] bytes) {
+    public static String commonBytesToHexStr(byte[] bytes) {
         StringBuilder hexString = new StringBuilder();
 
         int byteCount = 0;
@@ -208,7 +267,246 @@ public class MiPluginService extends Service {
         return hexString.toString();
     }
 
-    public String miioBytesToHexStr(byte[] bytes) {
+    private static String genAcOnJson(String model) {
+        if (model.equals(PLUG_MODEL_V1)) {
+            return "{\"id\": 1, \"method\": \"set_on\", \"params\": []}";
+        }
+        return "{\"id\": 1, \"method\": \"set_power\", \"params\": [\"on\"]}";
+    }
+
+    private static String genAcOffJson(String model) {
+        if (model.equals(PLUG_MODEL_V1)) {
+            return "{\"id\": 1, \"method\": \"set_off\", \"params\": []}";
+        }
+        return "{\"id\": 1, \"method\": \"set_power\", \"params\": [\"off\"]}";
+    }
+
+    private static String genUsbOnJson(String model) {
+        return "{\"id\": 1, \"method\": \"set_usb_on\", \"params\": []}";
+    }
+
+    private static String genUsbOffJson(String model) {
+        return "{\"id\": 1, \"method\": \"set_usb_off\", \"params\": []}";
+    }
+
+    private static byte[] concatByteArray(byte[] byte1, byte[] byte2) {
+        byte[] byteRet = new byte[byte1.length + byte2.length];
+        System.arraycopy(byte1, 0, byteRet, 0, byte1.length);
+        System.arraycopy(byte2 ,0, byteRet, byte1.length, byte2.length);
+        return byteRet;
+    }
+
+    private static byte[] hexStringToByteArray(String hexString) {
+        byte[] byteArray = new byte[hexString.length() / 2];
+        for (int i = 0; i < byteArray.length; i++) {
+            int index = i * 2;
+            int high = Integer.parseInt(hexString.substring(index, index + 1), 16);
+            int low = Integer.parseInt(hexString.substring(index + 1, index + 2), 16);
+            byteArray[i] = (byte) ((high << 4) + low);
+        }
+        return byteArray;
+    }
+
+    private static byte[] genByteArrayFromInt32(int intValue) {
+        byte[] result = new byte[4];
+        result[0] = (byte) ((intValue >> 24) & 0xFF);
+        result[1] = (byte) ((intValue >> 16) & 0xFF);
+        result[2] = (byte) ((intValue >> 8) & 0xFF);
+        result[3] = (byte) (intValue & 0xFF);
+        return result;
+    }
+
+    private static int getInt32FromByteArray(byte[] bytes, int startIndex) {
+        if (bytes == null || startIndex < 0 || startIndex + 3 >= bytes.length) {
+            Log.i(TAG, "getInt32FromByteArray error");
+            return 0;
+        }
+ 
+        // 这里使用了位操作符来组成int值
+        // 假设是大端顺序（高位字节在前）
+        int value = ((bytes[startIndex] & 0xFF) << 24) |
+                    ((bytes[startIndex + 1] & 0xFF) << 16) |
+                    ((bytes[startIndex + 2] & 0xFF) << 8) |
+                    (bytes[startIndex + 3] & 0xFF);
+ 
+        return value;
+    }
+
+    private static byte[] md5(byte[] input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            return md.digest(input);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Could not find MD5 algorithm", e);
+        }
+    }
+
+    private static byte[] parseDeviceIdFromReply(byte[] reply) {
+        byte[] byteRet = new byte[0];
+        if (reply.length >= 12) {
+            byteRet = new byte[4];
+            System.arraycopy(reply, 8, byteRet, 0, 4);
+        }
+        return byteRet;
+    }
+
+    private static byte[] encryptJson(String json, String token) {
+        Log.i(TAG, "encryptJson json=" + json + " token=" + token);
+        byte[] key = md5(hexStringToByteArray(token));
+        byte[] iv = md5(concatByteArray(key, hexStringToByteArray(token)));
+        byte[] end = new byte[1];
+        end[0] = 0;
+        byte[] byteRet = new byte[0];
+        try {
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding", "BC"); // 创建AES加密器
+            SecretKeySpec secretKeySpec = new SecretKeySpec(key, "AES");
+            cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, new IvParameterSpec(iv));
+            byteRet = cipher.doFinal(concatByteArray(json.getBytes(), end));
+        } catch (Exception e) {
+            Log.i(TAG, "encryptJson error=" + e);
+        }
+        return byteRet;
+    }
+
+    private static String decryptReply(byte[] reply, String token) {
+        byte[] key = md5(hexStringToByteArray(token));
+        byte[] iv = md5(concatByteArray(key, hexStringToByteArray(token)));
+        int length = 0;
+        if (reply.length >= 4) {
+            length = getInt16FromByteArray(reply, 2);
+        }
+        if (length > 32) {
+            byte[] byteEncrypted = new byte[length - 32];
+            System.arraycopy(reply, 32, byteEncrypted, 0, length - 32);
+
+            byte[] byteRet = new byte[0];
+            try {
+                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding", "BC"); // 创建AES加密器
+                SecretKeySpec secretKeySpec = new SecretKeySpec(key, "AES");
+                cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, new IvParameterSpec(iv));
+                byteRet = cipher.doFinal(byteEncrypted);
+            } catch (Exception e) {
+                Log.i(TAG, "encryptJson error=" + e);
+                return "decryptReply error";
+            }
+            if (byteRet.length > 0) {
+                String strRet = new String(byteRet);
+                return strRet;
+            } else {
+                return "decryptReply length is 0";
+            }
+        } else {
+            return "reply less than 32 bytes.";
+        }
+    }
+
+    private static byte[] genFunctionCmd(String token, String dataJson, byte[] device_id, int tick) {
+        byte[] encryptedJson = encryptJson(dataJson, token);
+        byte[] byteRet = new byte[encryptedJson.length + 32];
+
+        System.arraycopy(hexStringToByteArray("2131"), 0, byteRet, 0, 2);
+        System.arraycopy(genByteArrayFromInt32(encryptedJson.length + 32), 2, byteRet, 2, 2);
+        System.arraycopy(hexStringToByteArray("00000000"), 0, byteRet, 4, 4);
+        System.arraycopy(device_id, 0, byteRet, 8, 4);
+        System.arraycopy(genByteArrayFromInt32(tick), 0, byteRet, 12, 4);
+
+        System.arraycopy(hexStringToByteArray(token), 0, byteRet, 16, 16);
+
+        System.arraycopy(encryptedJson, 0, byteRet, 32, encryptedJson.length);
+
+        byte[] md5Ret = md5(byteRet);
+        System.arraycopy(md5Ret, 0, byteRet, 16, 16);
+
+        return byteRet;
+    }
+
+    public void sendAcOn() {
+        synchronized(deviceInfoLock) {
+            byte[] helloRet = sendHelloCmd();
+            if (helloRet.length == 0) {
+                return;
+            }
+            byte[] device_id = parseDeviceIdFromReply(helloRet);
+            int tick = getInt32FromByteArray(helloRet, 12);
+
+            String json = genAcOnJson(mModel);
+            byte[] byteCmd = genFunctionCmd(mToken, json, device_id, tick + 1);
+            byte[] byteRet = udpSendAndReceive(byteCmd);
+            Log.i(TAG, "sendAcOn return=" + decryptReply(byteRet, mToken));
+        }
+    }
+
+    public void sendAcOff() {
+        synchronized(deviceInfoLock) {
+            byte[] helloRet = sendHelloCmd();
+            if (helloRet.length == 0) {
+                return;
+            }
+            byte[] device_id = parseDeviceIdFromReply(helloRet);
+            int tick = getInt32FromByteArray(helloRet, 12);
+
+            String json = genAcOffJson(mModel);
+            byte[] byteCmd = genFunctionCmd(mToken, json, device_id, tick + 1);
+            byte[] byteRet = udpSendAndReceive(byteCmd);
+            Log.i(TAG, "sendAcOff return=" + decryptReply(byteRet, mToken));
+        }
+    }
+
+    public void sendUsbOn() {
+        synchronized(deviceInfoLock) {
+            byte[] helloRet = sendHelloCmd();
+            if (helloRet.length == 0) {
+                return;
+            }
+            byte[] device_id = parseDeviceIdFromReply(helloRet);
+            int tick = getInt32FromByteArray(helloRet, 12);
+
+            String json = genUsbOnJson(mModel);
+            byte[] byteCmd = genFunctionCmd(mToken, json, device_id, tick + 1);
+            byte[] byteRet = udpSendAndReceive(byteCmd);
+            Log.i(TAG, "sendUsbOn return=" + decryptReply(byteRet, mToken));
+        }
+    }
+
+    public void sendUsbOff() {
+        synchronized(deviceInfoLock) {
+            byte[] helloRet = sendHelloCmd();
+            if (helloRet.length == 0) {
+                return;
+            }
+            byte[] device_id = parseDeviceIdFromReply(helloRet);
+            int tick = getInt32FromByteArray(helloRet, 12);
+
+            String json = genUsbOffJson(mModel);
+            byte[] byteCmd = genFunctionCmd(mToken, json, device_id, tick + 1);
+            byte[] byteRet = udpSendAndReceive(byteCmd);
+            Log.i(TAG, "sendUsbOff return=" + decryptReply(byteRet, mToken));
+        }
+    }
+
+    private byte[] sendHelloCmd() {
+        String strHelloCmd = "21310020ffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        byte[] byteHelloCmd = hexStringToByteArray(strHelloCmd);
+
+        byte[] byteHelloRet = udpSendAndReceive(byteHelloCmd);
+        return byteHelloRet;
+    }
+    
+    private static int getInt16FromByteArray(byte[] bytes, int startIndex) {
+        if (bytes == null || startIndex < 0 || startIndex + 1 >= bytes.length) {
+            Log.i(TAG, "getInt16FromByteArray error");
+            return 0;
+        }
+ 
+        // 这里使用了位操作符来组成int值
+        // 假设是大端顺序（高位字节在前）
+        int value = ((bytes[startIndex + 0] & 0xFF) << 8) |
+                    (bytes[startIndex + 1] & 0xFF);
+ 
+        return value;
+    }
+
+    private String miioBytesToHexStr(byte[] bytes) {
         StringBuilder hexString = new StringBuilder();
 
         int realMsgLength = 0;
@@ -237,152 +535,7 @@ public class MiPluginService extends Service {
         return hexString.toString();
     }
 
-    public int getInt32FromByteArray(byte[] bytes, int startIndex) {
-        if (bytes == null || startIndex < 0 || startIndex + 3 >= bytes.length) {
-            Log.i(TAG, "getInt32FromByteArray error");
-            return 0;
-        }
- 
-        // 这里使用了位操作符来组成int值
-        // 假设是大端顺序（高位字节在前）
-        int value = ((bytes[startIndex] & 0xFF) << 24) |
-                    ((bytes[startIndex + 1] & 0xFF) << 16) |
-                    ((bytes[startIndex + 2] & 0xFF) << 8) |
-                    (bytes[startIndex + 3] & 0xFF);
- 
-        return value;
-    }
-
-    public byte[] getByteArrayFromInt32(int intValue) {
-        byte[] result = new byte[4];
-        result[0] = (byte) ((intValue >> 24) & 0xFF);
-        result[1] = (byte) ((intValue >> 16) & 0xFF);
-        result[2] = (byte) ((intValue >> 8) & 0xFF);
-        result[3] = (byte) (intValue & 0xFF);
-        return result;
-    }
-
-    public int getInt16FromByteArray(byte[] bytes, int startIndex) {
-        if (bytes == null || startIndex < 0 || startIndex + 1 >= bytes.length) {
-            Log.i(TAG, "getInt16FromByteArray error");
-            return 0;
-        }
- 
-        // 这里使用了位操作符来组成int值
-        // 假设是大端顺序（高位字节在前）
-        int value = ((bytes[startIndex + 0] & 0xFF) << 8) |
-                    (bytes[startIndex + 1] & 0xFF);
- 
-        return value;
-    }
-
-    public byte[] usbOnCmd(int tick) {
-        String usbOnCmd = "21310060000000000003266800000b07"
-                        + "d4130e242964c56c3ff610140c6531ec"
-                        + "eeafb858564ea343def1840448cfe191"
-                        + "d4ed434b83eb1477cdda1f5c68612d66"
-                        + "93ca1a4f0579bad65eac66fa481dbc77"
-                        + "68b8cb80a3f52bb273bd77892e9b5d39";
-        byte[] usbOnBstr = hexStringToByteArray(usbOnCmd);
-        byte[] tickBstr = getByteArrayFromInt32(tick + 1);
-        System.arraycopy(tickBstr, 0, usbOnBstr, 12, 4);
-
-        byte[] md5Ret = md5(usbOnBstr);
-        System.arraycopy(md5Ret, 0, usbOnBstr, 16, 16);
-
-        return usbOnBstr;
-    }
-
-    public byte[] usbOffCmd(int tick) {
-        String usbOffCmd = "21310060000000000003266800028e39"
-                         + "d4130e242964c56c3ff610140c6531ec"
-                         + "eeafb858564ea343def1840448cfe191"
-                         + "d9f0ca62530c40a7951c28aef4583795"
-                         + "b0af52499fa840c80f2debc95af871e6"
-                         + "818b3d9245487c595a8de02fd762c57c";
-        byte[] usbOffBstr = hexStringToByteArray(usbOffCmd);
-        byte[] tickBstr = getByteArrayFromInt32(tick + 1);
-        System.arraycopy(tickBstr, 0, usbOffBstr, 12, 4);
-
-        byte[] md5Ret = md5(usbOffBstr);
-        System.arraycopy(md5Ret, 0, usbOffBstr, 16, 16);
-
-        return usbOffBstr;
-    }
-
-
-    public void sendAcOn() {
-        byte[] helloRet = sendHelloCmd();
-        byte[] byteAcOnCmd = genAcOnCmd(helloRet);
-        udpSendAndReceive(byteAcOnCmd);
-    }
-
-    // plugin2
-    public byte[] genAcOnCmd(byte[] byteHelloRet) {
-        int tick = getInt32FromByteArray(byteHelloRet, 12);
-
-        String strAcOnCmd = "213100600000000003ece7df000014b5"
-                          + "03c8bd98935407bba7b79cfc474b99fb"
-                          + "3dd7de65737bce533509aec47ff03cc8"
-                          + "08fb656d03efd0c23dcd700442297542"
-                          + "cb9f5bc55b81373aed5f850cda4af463"
-                          + "23942b1f6b93cc6c08f766cfdff255c6";
-
-        byte[] byteAcOnCmd = hexStringToByteArray(strAcOnCmd);
-        byte[] byteTick = getByteArrayFromInt32(tick + 1);
-        System.arraycopy(byteTick, 0, byteAcOnCmd, 12, 4);
-
-        byte[] md5Ret = md5(byteAcOnCmd);
-        System.arraycopy(md5Ret, 0, byteAcOnCmd, 16, 16);
-
-        return byteAcOnCmd;
-    }
-
-    public void sendAcOff() {
-        byte[] helloRet = sendHelloCmd();
-        byte[] byteAcOffCmd = genAcOffCmd(helloRet);
-        udpSendAndReceive(byteAcOffCmd);
-    }
-
-    // plugin2
-    public byte[] genAcOffCmd(byte[] byteHelloRet) {
-        int tick = getInt32FromByteArray(byteHelloRet, 12);
-
-        String strAcOffCmd = "213100600000000003ece7df000014bb"
-                           + "03c8bd98935407bba7b79cfc474b99fb"
-                           + "3dd7de65737bce533509aec47ff03cc8"
-                           + "08fb656d03efd0c23dcd700442297542"
-                           + "603e67c295ca9a939e70d70658b42b47"
-                           + "c711df96aa09ca66342403e4d3f7a2f9";
-
-        byte[] byteAcOffCmd = hexStringToByteArray(strAcOffCmd);
-        byte[] byteTick = getByteArrayFromInt32(tick + 1);
-        System.arraycopy(byteTick, 0, byteAcOffCmd, 12, 4);
-
-        byte[] md5Ret = md5(byteAcOffCmd);
-        System.arraycopy(md5Ret, 0, byteAcOffCmd, 16, 16);
-
-        return byteAcOffCmd;
-    }
-
-    public byte[] md5(byte[] input) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            return md.digest(input);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Could not find MD5 algorithm", e);
-        }
-    }
-
-    public byte[] sendHelloCmd() {
-        String strHelloCmd = "21310020ffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-        byte[] byteHelloCmd = hexStringToByteArray(strHelloCmd);
-
-        byte[] byteHelloRet = udpSendAndReceive(byteHelloCmd);
-        return byteHelloRet;
-    }
-    
-    public byte[] udpSendAndReceive(byte[] byteCmd) {
+    private byte[] udpSendAndReceive(byte[] byteCmd) {
         byte[] byteRet = new byte[0];
         DatagramSocket ds;
         InetAddress udpAddr;

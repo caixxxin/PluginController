@@ -8,51 +8,94 @@
     tools:context=".MainActivity">
 
     <TextView
-        android:id="@+id/ipTip"
+        android:id="@+id/deviceSelectText"
         android:layout_width="wrap_content"
         android:layout_height="50dp"
-        android:text="IP地址："
+        android:text="设备："
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <EditText
-        android:id="@+id/ipInput"
-        android:layout_width="800dp"
+    <Spinner
+        android:id="@+id/deviceSelectSpinner"
+        android:layout_width="500dp"
         android:layout_height="50dp"
-        app:layout_constraintLeft_toRightOf="@+id/ipTip"
-        app:layout_constraintTop_toTopOf="parent"
-        android:hint="请输入IP地址" />
+        app:layout_constraintLeft_toRightOf="@+id/deviceSelectText"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
         android:id="@+id/tokenTip"
         android:layout_width="wrap_content"
         android:layout_height="50dp"
         android:text="TOKEN："
+        app:layout_constraintLeft_toLeftOf="@+id/deviceSelectSpinner"
+        app:layout_constraintTop_toBottomOf="@+id/deviceSelectText" />
+    <TextView
+        android:id="@+id/ModelTip"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:text="MODEL:"
+        app:layout_constraintLeft_toLeftOf="@+id/deviceSelectSpinner"
+        app:layout_constraintTop_toBottomOf="@+id/tokenTip" />
+
+    <TextView
+        android:id="@+id/ipTip"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:text="IP地址："
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/ipTip" />
+        app:layout_constraintTop_toBottomOf="@+id/ModelTip" />
 
     <EditText
-        android:id="@+id/tokenInput"
-        android:layout_width="800dp"
+        android:id="@+id/ipInput"
+        android:layout_width="500dp"
         android:layout_height="50dp"
-        app:layout_constraintLeft_toRightOf="@+id/tokenTip"
-        app:layout_constraintTop_toTopOf="@+id/tokenTip"
-        android:hint="请输入token" />
+        app:layout_constraintLeft_toRightOf="@+id/ipTip"
+        app:layout_constraintTop_toBottomOf="@+id/ModelTip"
+        android:hint="请输入IP地址" />
 
     <Button
         android:id="@+id/submitButton"
-        android:layout_width="match_parent"
+        android:layout_width="500dp"
         android:layout_height="wrap_content"
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tokenTip"
+        app:layout_constraintTop_toBottomOf="@+id/ipInput"
         android:text="提交" />
 
-    <TextView
-        android:id="@+id/resultOutput"
-        android:layout_width="800dp"
+    <CheckBox
+        android:id="@+id/testModeSelect"
+        android:layout_width="400dp"
         android:layout_height="50dp"
-        android:text="Hello World!"
+        android:text="测试模式"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/submitButton" />
+
+    <Button
+        android:id="@+id/testAcOn"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/testModeSelect"
+        android:text="AC-ON" />
+    <Button
+        android:id="@+id/testAcOff"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintLeft_toRightOf="@+id/testAcOn"
+        app:layout_constraintTop_toBottomOf="@+id/testModeSelect"
+        android:text="AC-OFF" />
+    <Button
+        android:id="@+id/testUsbOn"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintLeft_toRightOf="@+id/testAcOff"
+        app:layout_constraintTop_toBottomOf="@+id/testModeSelect"
+        android:text="USB-ON" />
+    <Button
+        android:id="@+id/testUsbOff"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintLeft_toRightOf="@+id/testUsbOn"
+        app:layout_constraintTop_toBottomOf="@+id/testModeSelect"
+        android:text="USB-OFF" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
