@@ -59,9 +59,9 @@ public class MiPluginService extends Service {
                 Log.i(TAG, "battery=" + String.valueOf(mBattLevel) + " scale=" + String.valueOf(mBattScale) + " temp=" + String.valueOf(mBattTemp) + " status=" + batteryStatusToString(mBattStatus));
                 
                 if (!mTestMode) {
-                    if (mBattLevel > 80 && (mBattStatus == BatteryManager.BATTERY_STATUS_CHARGING || mBattStatus == BatteryManager.BATTERY_STATUS_FULL)) {
+                    if (mBattLevel > 90 && (mBattStatus == BatteryManager.BATTERY_STATUS_CHARGING || mBattStatus == BatteryManager.BATTERY_STATUS_FULL)) {
                         sendAcOff();
-                    } else if (mBattLevel < 20 && (mBattStatus == BatteryManager.BATTERY_STATUS_DISCHARGING || mBattStatus == BatteryManager.BATTERY_STATUS_NOT_CHARGING ||mBattStatus == BatteryManager.BATTERY_HEALTH_UNKNOWN)) {
+                    } else if (mBattLevel < 40 && (mBattStatus == BatteryManager.BATTERY_STATUS_DISCHARGING || mBattStatus == BatteryManager.BATTERY_STATUS_NOT_CHARGING ||mBattStatus == BatteryManager.BATTERY_HEALTH_UNKNOWN)) {
                         sendAcOn();
                     }
                 }
